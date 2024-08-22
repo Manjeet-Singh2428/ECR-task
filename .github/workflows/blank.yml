@@ -44,14 +44,14 @@ jobs:
       - name: Determine ECR Repository
         id: ecr-repo
         run: |
-          if [[ "${{ github.event.pull_request.merged }}" == "true" && "${{ github.event.pull_request.labels }}" == *"production"* ]]; then
-            echo "ECR_REPOSITORY=${{ secrets.PROD_ECR_URI }}" >> $GITHUB_ENV
-          elif [[ "${{ github.event.pull_request.merged }}" != "true" && "${{ github.event.pull_request.labels }}" == *"development"* ]]; then
+          if [[ "${{ github.event.pull_request.merged }}" == "true" ]]; then
+            if [[ "${{ github.event.pull_request.labels[*] }}" == *"production"* ]]; then
+              echo "ECR_REPOSITORY=${{ secrets.PROD_ECR_URI }}" >> $GITHUB_ENV
+            else
+              echo "ECR_REPOSITORY=${{ secrets.DEV_ECR_URI }}" >> $GITHUB_ENV
+            fi
+          else
             echo "ECR_REPOSITORY=${{ secrets.DEV_ECR_URI }}" >> $GITHUB_ENV
-          elif [[ "${{ github.event.pull_request.merged }}" != "true" && -z "${{ github.event.pull_request.labels }}" ]]; then
-            echo "ECR_REPOSITORY=${{ secrets.DEV_ECR_URI }}" >> $GITHUB_ENV
-          elif [[ "${{ github.event.pull_request.merged }}" == "true" && -z "${{ github.event.pull_request.labels }}" ]]; then
-            echo "ECR_REPOSITORY=${{ secrets.PROD_ECR_URI }}" >> $GITHUB_ENV
           fi
 
       - name: Tag Docker image
@@ -59,11 +59,11 @@ jobs:
 
       - name: Push Docker image to Dev (with development label or no label)
         if: |
-          (github.event_name == 'push' && (github.event.pull_request.labels != 'production')) ||
-          (github.event_name == 'pull_request' && github.event.pull_request.merged == false && env.ECR_REPOSITORY == env.DEV_ECR_URI)
+          github.event_name == 'push' || 
+          (github.event_name == 'pull_request' && github.event.pull_request.merged == false)
         run: docker push ${{ env.ECR_REPOSITORY }}:${{ github.sha }}
 
-      - name: Push Docker image to Prod (after merge with production label or no label)
+      - name: Push Docker image to Prod (after merge with production label)
         if: |
           github.event_name == 'pull_request' && github.event.pull_request.merged == true &&
           (env.ECR_REPOSITORY == env.PROD_ECR_URI)
